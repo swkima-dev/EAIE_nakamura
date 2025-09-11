@@ -9,13 +9,13 @@
 
 ## CardRecog_train.py
 
-数字13種類 × スート4種類の52クラス分類を実行する単一の認識モデルを学習するプログラム．  
+数字13種類×スート4種類の52クラス分類を実行する単一の認識モデルを学習するプログラム．  
 学習に使用するデータセットは 19, 20 行目で指定します．  
 また，学習結果のモデルパラメータの保存先は 26, 27 行目で指定します．
 
 **コマンド例**
 ```
-python CardRecog_train.py --gpu 0 --epochs 10 --batchsize 100 --autosave
+python CardRecog_train.py --gpu 0 --epochs 20 --batchsize 256 --autosave
 ```
 **オプション**
 - gpu
@@ -35,6 +35,29 @@ python CardRecog_train.py --gpu 0 --epochs 10 --batchsize 100 --autosave
 ## CardRecog_test.py
 
 ## CardRecog_train2.py
+
+まず絵札か否かを判定し，絵札の場合は3種類(J,Q,K)×スート4種類の12クラス分類を，非絵札の場合は数字10種類×スート4種類の40クラス分類をそれぞれ実行する，
+という形の2段階認識モデルを習するプログラム．  
+学習に使用するデータセットは 19, 20 行目で指定します．  
+また，学習結果のモデルパラメータの保存先は 26～29 行目で指定します．
+
+**コマンド例**
+```
+python CardRecog_train2.py --gpu 0 --epochs 20 --batchsize 256 --autosave
+```
+**オプション**
+- gpu
+  - 使用するGPUのID
+  - デフォルト値も含めて MLP_train.py の同名オプションと同じです．
+- epochs
+  - 何エポック分学習するか
+  - MLP_train.py の同名オプションと同じですが，指定しない場合のデフォルト値は 10 となっています．
+- batchsize
+  - バッチサイズ
+  - デフォルト値も含めて MLP_train.py の同名オプションと同じです．
+- autosave
+  - 指定すると毎エポック終了時にモデルパラメータが自動保存されるようになります．
+  - 保存先は ./CNN_models/{autosaved_cc_model_epX.pth, autosaved_pcc_model_epX.pth, autosaved_ncc_model_epX.pth} です（ X はエポック番号 ）．
 
 ## CardRecog_test2.py
 
