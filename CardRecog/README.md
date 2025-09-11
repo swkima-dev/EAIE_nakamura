@@ -35,7 +35,8 @@ python CardRecog_train.py --gpu 0 --epochs 20 --batchsize 256 --autosave
 ## CardRecog_test.py
 
 上記の CardRecog_train.py で学習した認識モデルを用いて実際にカードの種類・スートを認識するプログラム．  
-カメラを駆動してリアルタイムに認識処理を実行しますので，事前にUSBカメラをPCに接続しておく必要があります．
+カメラを駆動してリアルタイムに認識処理を実行しますので，事前にUSBカメラをPCに接続しておく必要があります．  
+使用する認識モデルは 17, 18 行目で指定します．
 
 **コマンド例**
 ```
@@ -75,6 +76,19 @@ python CardRecog_train2.py --gpu 0 --epochs 20 --batchsize 256 --autosave
     - autosaved_ncc_model_epX.pth: 非絵札に関する40クラス分類を行うモデル
 
 ## CardRecog_test2.py
+
+上記の CardRecog_train2.py で学習した認識モデルを用いて実際にカードの種類・スートを認識するプログラム．  
+カメラを駆動してリアルタイムに認識処理を実行しますので，事前にUSBカメラをPCに接続しておく必要があります．  
+使用する認識モデルは 17～20 行目で指定します．
+
+**コマンド例**
+```
+python CardRecog_test2.py --gpu 0
+```
+**オプション**
+- gpu
+  - 使用するGPUのID
+  - デフォルト値も含めて CardRecog_train.py の同名オプションと同じです．
 
 ## CNN_models
 
