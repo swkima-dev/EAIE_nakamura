@@ -1,4 +1,5 @@
 import os
+import cv2
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -46,6 +47,33 @@ def __extract__(arr, target_indices):
         return torch.tensor(return_value, dtype=arr.dtype, device=arr.device)
     else:
         return return_value
+
+
+# torch.tensor型のテンソルをデータセットとして扱うためのクラス
+#   - filenames: 読み込むテンソルファイル（.pt）群のファイルパスリスト
+#   - tensors: 読み込み済みのテンソルを直接使用する場合に使用
+class TensorDataset(Dataset):
+
+    # コンストラクタ
+    def __init__(self, filenames=None, tensors=None):
+        super(TensorDataset, self).__init__()
+        if filenames is None:
+            self.tensors = tensors
+        else:
+            self.tensors = [torch.load(filenames[i], weights_only=True) for i in range(len(filenames))]
+        self.len = self.tensors[0].size()[0]
+
+    # データセットサイズを返却する関数
+    def __len__(self):
+        return self.len
+
+    # index 番目のデータを返却する関数
+    # データローダは，この関数を必要な回数だけ呼び出して，自動的にミニバッチを作成してくれる
+    def __getitem__(self, index):
+        if len(self.tensors) == 1:
+            return self.tensors[0][index]
+        else:
+            return tuple([self.tensors[i][index] for i in range(len(self.tensors))])
 
 
 # データセット読込用のクラス
@@ -176,6 +204,7 @@ class CSVBasedDataset(Dataset):
 #   - target_indices: 読み込み対象とするインデックスの集合（Noneの場合は全データを読み込む. デフォルトではNone）
 #   - target_labels: 読み込み対象とするラベルの集合（学習データと検証データをラベル単位で切り分ける際に使用．デフォルトでは無視される）
 #   - use_anchor_label: Anchorデータのラベル情報を同時に使用するか否か
+#   - without_negative: このオプションが True のときは負例を使用しない
 #   - fdict: ラベルを整数値に変換するための正引き辞書（Noneの場合は自動作成）
 #   - dirname: データ型が 'image' のとき, ファイル名の先頭に付加するディレクトリ名を指定するのに使用
 #   - img_mode: データ型が 'image' のとき, カラー画像か否かを指定するのに使用（ 'color' か 'grayscale' のいずれか）
@@ -184,10 +213,11 @@ class CSVBasedDataset(Dataset):
 class TripletImageDataset(Dataset):
 
     # コンストラクタ
-    def __init__(self, filename, data_item, label_item, target_indices=None, target_labels=None, use_anchor_label=False, fdict=None, dirname='./', img_mode='', img_range=[0, 1], img_transform=None):
+    def __init__(self, filename, data_item, label_item, target_indices=None, target_labels=None, use_anchor_label=False, without_negative=False, fdict=None, dirname='./', img_mode='', img_range=[0, 1], img_transform=None):
         super(TripletImageDataset, self).__init__()
 
         self.use_anchor_label = use_anchor_label
+        self.without_negative = without_negative
         self.dirname = dirname
         self.img_range = img_range
         self.img_range_coeff = (self.img_range[1] - self.img_range[0]) / 255
@@ -243,24 +273,32 @@ class TripletImageDataset(Dataset):
         if len(p_cands) >= 2:
             while p_index == index:
                 p_index = np.random.choice(p_cands)
-        n_index = np.random.choice(np.where(self.label != lab)[0])
 
         # 実際に画像ファイルを読み込み，画素値を正規化する
         anc = torchvision.io.read_image(os.path.join(self.dirname, self.data[index]), mode=self.img_mode)
         pos = torchvision.io.read_image(os.path.join(self.dirname, self.data[p_index]), mode=self.img_mode)
-        neg = torchvision.io.read_image(os.path.join(self.dirname, self.data[n_index]), mode=self.img_mode)
         anc = anc * self.img_range_coeff + self.img_range[0]
         pos = pos * self.img_range_coeff + self.img_range[0]
-        neg = neg * self.img_range_coeff + self.img_range[0]
         if self.img_transform is not None:
             anc = self.img_transform(anc)
             pos = self.img_transform(pos)
-            neg = self.img_transform(neg)
+        if not self.without_negative:
+            n_index = np.random.choice(np.where(self.label != lab)[0])
+            neg = torchvision.io.read_image(os.path.join(self.dirname, self.data[n_index]), mode=self.img_mode)
+            neg = neg * self.img_range_coeff + self.img_range[0]
+            if self.img_transform is not None:
+                neg = self.img_transform(neg)
 
         if self.use_anchor_label:
-            return anc, pos, neg, torch.tensor(lab, dtype=torch.long)
+            if self.without_negative:
+                return anc, pos, torch.tensor(lab, dtype=torch.long)
+            else:
+                return anc, pos, neg, torch.tensor(lab, dtype=torch.long)
         else:
-            return anc, pos, neg
+            if self.without_negative:
+                return anc, pos
+            else:
+                return anc, pos, neg
 
 
 # 画像表示用関数
@@ -283,7 +321,7 @@ def show_single_image(data, title='no_title', sec=0, save_fig=False, save_only=F
     plt.subplots_adjust(left=0.04, right=0.96, bottom=0.04, top=0.96)
     plt.axis('off')
     plt.title(title)
-    plt.imshow(img, cmap=cm.gray, interpolation='nearest')
+    plt.imshow(img, cmap=cm.gray, interpolation='nearest', vmin=0, vmax=255)
     if save_fig or save_only:
         plt.savefig(os.path.join(save_dir, title + '.png'), bbox_inches='tight')
     if not save_only:
@@ -315,7 +353,7 @@ def show_images(data, num, num_per_row=0, title='no_title', sec=0, save_fig=Fals
     for i in range(0, n_total):
         plt.subplot(n_rows, num_per_row, i+1)
         plt.axis('off')
-        plt.imshow(data[i].transpose(1, 2, 0), cmap=cm.gray, interpolation='nearest')
+        plt.imshow(data[i].transpose(1, 2, 0), cmap=cm.gray, interpolation='nearest', vmin=0, vmax=255)
     if save_fig or save_only:
         plt.savefig(os.path.join(save_dir, title + '.png'), bbox_inches='tight')
     if not save_only:
@@ -333,6 +371,37 @@ def to_tanh_image(img):
 # 画素値の範囲を [-1, 1] から [0, 1] に変更
 def to_sigmoid_image(img):
     return 0.5 * (img + 1)
+
+
+# 複数枚の画像を個別に保存する処理を実行するクラス
+#   - root, dirname: 保存先のディレクトリパス（ root/dirname/ 以下に画像が保存される）
+#   - root, listname: 保存した画像のファイルリストのパス（ root/listname に画像ファイルリストが自動作成される）
+#   - mode: 保存対象のテンソルの値域が概ね [0, 1] であれば mode=='sigmoid' を，概ね [-1, 1] であれば mode=='tanh' を指定する
+#   - ext: 画像ファイルの拡張子として使用したい文字列（デフォルトでは png）
+class ImagesetWriter:
+    def __init__(self, root='./', dirname='images', listname='image_list.csv', ext='png'):
+        self.ext = ext
+        self.root = root
+        self.dirname = dirname
+        self.listname = listname
+        self.curr_index = 0
+        os.makedirs(os.path.join(root, dirname), exist_ok=True)
+        self.f = open(os.path.join(root, listname), 'w')
+        print('File Path', file=self.f)
+    def __del__(self):
+        self.f.close()
+    def __call__(self, data, mode='sigmoid'):
+        if mode == 'sigmoid':
+            data = torch.clamp(data, min=0.0, max=1.0).to('cpu').detach()
+        elif mode == 'tanh':
+            data = to_sigmoid_image(torch.clamp(data, min=-1.0, max=1.0)).to('cpu').detach()
+        else:
+            raise NotImplementedError()
+        data = (255 * data.numpy().transpose(0, 2, 3, 1)).astype(np.uint8)
+        for i in range(len(data)):
+            cv2.imwrite(os.path.join(self.root, self.dirname, '{0:07}.{1}'.format(self.curr_index, self.ext)), cv2.cvtColor(data[i], code=cv2.COLOR_RGB2BGR))
+            print(os.path.join(self.dirname, '{0:07}.{1}'.format(self.curr_index, self.ext)).replace('\\', '/'), file=self.f)
+            self.curr_index += 1
 
 
 # モデル保存用にファイル名を調整する

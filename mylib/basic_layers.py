@@ -349,17 +349,17 @@ class AdaIN(nn.Module):
 # 転移学習で VGG や ResNet を使用する際の前処理を行う層
 class BackbonePreprocess(nn.Module):
 
-    def __init__(self, image_size=224, image_size_before_cropped=256, do_center_crop=True):
+    def __init__(self, do_center_crop=True):
         super(BackbonePreprocess, self).__init__()
         if do_center_crop:
             self.preprocess = transforms.Compose([
-                transforms.Resize(image_size_before_cropped, antialias=True), # 入力画像を 256x256 ピクセルに正規化
-                transforms.CenterCrop(image_size), # 256x256 ピクセルの入力画像から中央 224x224 ピクセルを取り出す
+                transforms.Resize(256), # 入力画像を 256x256 ピクセルに正規化
+                transforms.CenterCrop(224), # 256x256 ピクセルの入力画像から中央 224x224 ピクセルを取り出す
                 transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]), # 取り出した部分の画素値を正規化する
             ])
         else:
             self.preprocess = transforms.Compose([
-                transforms.Resize(image_size, antialias=True), # 入力画像を 224x224 ピクセルに正規化
+                transforms.Resize(224), # 入力画像を 224x224 ピクセルに正規化
                 transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]), # 取り出した部分の画素値を正規化する
             ])
 
