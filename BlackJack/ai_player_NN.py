@@ -39,6 +39,9 @@ nn_model = None
 # ニューラルネットワークのクラス番号の順番に合わせて並べる（基本的にアルファベット順になるはず）
 action_set = [Action.DOUBLE_DOWN, Action.HIT, Action.RETRY, Action.STAND, Action.SURRENDER]
 
+# 使用するデバイス（CPUかGPUか）を表す文字列
+g_device = '' # 空文字列で初期化
+
 
 ### 関数 ###
 
@@ -268,10 +271,10 @@ def get_state():
 
 # 行動戦略
 def select_action(state):
-    global nn_model
+    global nn_model, g_device
 
     # 現状態を torch.tensor 型に変換
-    x = torch.tensor(np.asarray([state]), dtype=torch.float32, device=DEVICE)
+    x = torch.tensor(np.asarray([state]), dtype=torch.float32, device=g_device)
 
     # 現状態をニューラルネットワークに入力
     y = nn_model(x)
@@ -284,72 +287,80 @@ def select_action(state):
 
 ### ここから処理開始 ###
 
-parser = argparse.ArgumentParser(description='AI Black Jack Player (Neural Network-based)')
-parser.add_argument('--games', type=int, default=1, help='num. of games to play')
-parser.add_argument('--history', type=str, default='play_log.csv', help='filename where game history will be saved')
-parser.add_argument('--model', default=os.path.join(MODEL_DIR, 'model.pth'), type=str, help='file path of trained model')
-parser.add_argument('--gpu', default=-1, type=int, help='GPU/CUDA ID (negative value indicates CPU)')
-args = print_args(parser.parse_args())
-DEVICE = args['device']
-MODEL_PATH = args['model']
+def main():
+    global g_retry_counter, g_device, player, soc, nn_model, action_set
 
-n_games = args['games'] + 1
+    parser = argparse.ArgumentParser(description='AI Black Jack Player (Neural Network-based)')
+    parser.add_argument('--games', type=int, default=1, help='num. of games to play')
+    parser.add_argument('--history', type=str, default='play_log.csv', help='filename where game history will be saved')
+    parser.add_argument('--model', default=os.path.join(MODEL_DIR, 'model.pth'), type=str, help='file path of trained model')
+    parser.add_argument('--gpu', default=-1, type=int, help='GPU/CUDA ID (negative value indicates CPU)')
+    args = print_args(parser.parse_args())
+    MODEL_PATH = args['model']
+    DEVICE = args['device']
+    g_device = DEVICE
 
-# ログファイルを開く
-logfile = open(args['history'], 'w')
-print('score,hand_length,action,result,reward', file=logfile) # ログファイルにヘッダ行（項目名の行）を出力
+    n_games = args['games'] + 1
 
-# ニューラルネットワークの作成
-nn_model = BJNet()
-nn_model.load_state_dict(torch.load(MODEL_PATH))
-nn_model = nn_model.to(DEVICE)
-nn_model.eval()
+    # ログファイルを開く
+    logfile = open(args['history'], 'w')
+    print('score,hand_length,action,result,reward', file=logfile) # ログファイルにヘッダ行（項目名の行）を出力
 
-# n_games回ゲームを実行
-for n in range(1, n_games):
+    # ニューラルネットワークの作成
+    nn_model = BJNet()
+    nn_model.load_state_dict(torch.load(MODEL_PATH))
+    nn_model = nn_model.to(DEVICE)
+    nn_model.eval()
 
-    # nゲーム目を開始
-    game_start(n)
+    # n_games回ゲームを実行
+    for n in range(1, n_games):
 
-    # 「現在の状態」を取得
-    state = get_state()
+        # nゲーム目を開始
+        game_start(n)
 
-    while True:
-
-        # 次に実行する行動を選択
-        action = select_action(state)
-        if g_retry_counter >= RETRY_MAX and action == Action.RETRY:
-            # RETRY回数が上限に達しているにもかかわらずRETRYが選択された場合，他の行動をランダムに選択
-            action = np.random.choice([
-                Action.HIT, Action.STAND, Action.DOUBLE_DOWN, Action.SURRENDER
-            ])
-        action_name = get_action_name(action) # 行動名を表す文字列を取得
-
-        # 選択した行動を実際に実行
-        # 戻り値:
-        #   - done: 終了フラグ．今回の行動によりゲームが終了したか否か（終了した場合はTrue, 続行中ならFalse）
-        #   - reward: 獲得金額（ゲーム続行中の場合は 0 , ただし RETRY を実行した場合は1回につき -BET/4 ）
-        #   - status: 行動実行後のプレイヤーステータス（バーストしたか否か，勝ちか負けか，などの状態を表す文字列）
-        reward, done, status = act(action)
-
-        # 実行した行動がRETRYだった場合はRETRY回数カウンターを1増やす
-        if action == Action.RETRY:
-            g_retry_counter += 1
-
-        # 「現在の状態」を再取得
-        prev_state = state # 使わないかもしれないが，行動前の状態を別変数に退避
-        prev_score = prev_state[0] # 行動前のプレイヤー手札のスコア（prev_state の一つ目の要素）
+        # 「現在の状態」を取得
         state = get_state()
-        score = state[0] # 行動後のプレイヤー手札のスコア（state の一つ目の要素）
 
-        # ログファイルに「行動前の状態」「行動の種類」「行動結果」「獲得金額」などの情報を記録
-        print('{},{},{},{},{}'.format(prev_state[0], prev_state[1], action_name, status, reward), file=logfile)
+        while True:
 
-        # 終了フラグが立った場合はnゲーム目を終了
-        if done == True:
-            break
+            # 次に実行する行動を選択
+            action = select_action(state)
+            if g_retry_counter >= RETRY_MAX and action == Action.RETRY:
+                # RETRY回数が上限に達しているにもかかわらずRETRYが選択された場合，他の行動をランダムに選択
+                action = np.random.choice([
+                    Action.HIT, Action.STAND, Action.DOUBLE_DOWN, Action.SURRENDER
+                ])
+            action_name = get_action_name(action) # 行動名を表す文字列を取得
 
-    print('')
+            # 選択した行動を実際に実行
+            # 戻り値:
+            #   - done: 終了フラグ．今回の行動によりゲームが終了したか否か（終了した場合はTrue, 続行中ならFalse）
+            #   - reward: 獲得金額（ゲーム続行中の場合は 0 , ただし RETRY を実行した場合は1回につき -BET/4 ）
+            #   - status: 行動実行後のプレイヤーステータス（バーストしたか否か，勝ちか負けか，などの状態を表す文字列）
+            reward, done, status = act(action)
 
-# ログファイルを閉じる
-logfile.close()
+            # 実行した行動がRETRYだった場合はRETRY回数カウンターを1増やす
+            if action == Action.RETRY:
+                g_retry_counter += 1
+
+            # 「現在の状態」を再取得
+            prev_state = state # 使わないかもしれないが，行動前の状態を別変数に退避
+            prev_score = prev_state[0] # 行動前のプレイヤー手札のスコア（prev_state の一つ目の要素）
+            state = get_state()
+            score = state[0] # 行動後のプレイヤー手札のスコア（state の一つ目の要素）
+
+            # ログファイルに「行動前の状態」「行動の種類」「行動結果」「獲得金額」などの情報を記録
+            print('{},{},{},{},{}'.format(prev_state[0], prev_state[1], action_name, status, reward), file=logfile)
+
+            # 終了フラグが立った場合はnゲーム目を終了
+            if done == True:
+                break
+
+        print('')
+
+    # ログファイルを閉じる
+    logfile.close()
+
+
+if __name__ == '__main__':
+    main()

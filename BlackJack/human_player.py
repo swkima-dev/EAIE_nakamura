@@ -8,9 +8,10 @@ from config import PORT, BET, INITIAL_MONEY, MAX_CARDS_PER_GAME
 
 class HumanPlayerWindow():
 
-    def __init__(self, initial_money: int, basic_bet: int, max_cards_per_game: int):
+    def __init__(self, initial_money: int, basic_bet: int, max_cards_per_game: int, logfile):
 
         self.max_cards_per_game = max_cards_per_game
+        self.logfile = logfile
 
         # プレイヤークラスのインスタンスを作成
         self.player = Player(initial_money=initial_money, basic_bet=basic_bet)
@@ -442,22 +443,28 @@ class HumanPlayerWindow():
         score = state[0] # 行動後のプレイヤー手札のスコア（state の一つ目の要素）
 
         # ログファイルに「行動前の状態」「行動の種類」「行動結果」「獲得金額」などの情報を記録
-        print('{},{},{},{},{}'.format(prev_state[0], prev_state[1], action_name, status, reward), file=logfile)
+        print('{},{},{},{},{}'.format(prev_state[0], prev_state[1], action_name, status, reward), file=self.logfile)
 
 
 ### ここから処理開始 ###
 
-parser = argparse.ArgumentParser(description='Black Jack Client')
-parser.add_argument('--history', type=str, default='play_log.csv', help='filename where game history will be saved')
-args = parser.parse_args()
+def main():
 
-# ログファイルを開く
-logfile = open(args.history, 'w')
-print('score,hand_length,action,result,reward', file=logfile) # ログファイルにヘッダ行（項目名の行）を出力
+    parser = argparse.ArgumentParser(description='Black Jack Client')
+    parser.add_argument('--history', type=str, default='play_log.csv', help='filename where game history will be saved')
+    args = parser.parse_args()
 
-# メインループ開始
-window = HumanPlayerWindow(initial_money=INITIAL_MONEY, basic_bet=BET, max_cards_per_game=MAX_CARDS_PER_GAME)
-window.run()
+    # ログファイルを開く
+    logfile = open(args.history, 'w')
+    print('score,hand_length,action,result,reward', file=logfile) # ログファイルにヘッダ行（項目名の行）を出力
 
-# ログファイルを閉じる
-logfile.close()
+    # メインループ開始
+    window = HumanPlayerWindow(initial_money=INITIAL_MONEY, basic_bet=BET, max_cards_per_game=MAX_CARDS_PER_GAME, logfile=logfile)
+    window.run()
+
+    # ログファイルを閉じる
+    logfile.close()
+
+
+if __name__ == '__main__':
+    main()

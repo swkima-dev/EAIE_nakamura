@@ -186,128 +186,134 @@ class Dealer():
 
 ### ここから処理開始 ###
 
-# 乱数シードを固定する場合は以下をアンコメント（「314」の部分には適当なシード値を入れる）
-#np.random.seed(314)
+def main():
 
-# ディーラークラスのインスタンスを作成
-dealer = Dealer(n_decks=N_DECKS, shuffle_interval=SHUFFLE_INTERVAL, shuffle_threshold=SHUFFLE_THRESHOLD, max_cards_per_game=MAX_CARDS_PER_GAME)
+    # 乱数シードを固定する場合は以下をアンコメント（「314」の部分には適当なシード値を入れる）
+    #np.random.seed(314)
 
-# プレイヤーからの接続を受け付けるソケットを用意
-soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # プレイヤーからの通信受付用ソケット
-soc.settimeout(1.0)
-soc.bind((socket.gethostname(), PORT))
-soc.listen(1)
-print('The dealer program has started!!')
-print()
-print('Waiting for a new player ...')
+    # ディーラークラスのインスタンスを作成
+    dealer = Dealer(n_decks=N_DECKS, shuffle_interval=SHUFFLE_INTERVAL, shuffle_threshold=SHUFFLE_THRESHOLD, max_cards_per_game=MAX_CARDS_PER_GAME)
 
-# Ctrl+C で停止されるまで，無限ループでゲームを続ける
-while True:
+    # プレイヤーからの接続を受け付けるソケットを用意
+    soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # プレイヤーからの通信受付用ソケット
+    soc.settimeout(1.0)
+    soc.bind((socket.gethostname(), PORT))
+    soc.listen(1)
+    print('The dealer program has started!!')
+    print()
+    print('Waiting for a new player ...')
 
-    try:
-        player_soc, address = soc.accept() # プレイヤーからの通信待ち状態に入る
-    except socket.timeout:
-        pass
-    except:
-        soc.close()
-        raise
-    else:
+    # Ctrl+C で停止されるまで，無限ループでゲームを続ける
+    while True:
 
-        print('A player has come.')
+        try:
+            player_soc, address = soc.accept() # プレイヤーからの通信待ち状態に入る
+        except socket.timeout:
+            pass
+        except:
+            soc.close()
+            raise
+        else:
 
-        # 手札を初期化
-        cardset_shuffled = dealer.initialize_game()
-        if cardset_shuffled is True:
-            print('Card set has been shuffled.') # 初期化中にカードをシャッフルした場合はメッセージを表示
-        dealer.send_card_shuffle_status(player_soc, status=cardset_shuffled)
+            print('A player has come.')
 
-        print('Num. remaining cards: ', dealer.get_num_remaining_cards() + 4)
-        print('Game start!!')
+            # 手札を初期化
+            cardset_shuffled = dealer.initialize_game()
+            if cardset_shuffled is True:
+                print('Card set has been shuffled.') # 初期化中にカードをシャッフルした場合はメッセージを表示
+            dealer.send_card_shuffle_status(player_soc, status=cardset_shuffled)
 
-        # ディーラーカード1枚とプレイヤーカード2枚をプレイヤーに開示
-        dealer.send_init_cards(player_soc)
+            print('Num. remaining cards: ', dealer.get_num_remaining_cards() + 4)
+            print('Game start!!')
 
-        # プレイヤーのアクションを受信して応答する（ループ処理）
-        while True:
+            # ディーラーカード1枚とプレイヤーカード2枚をプレイヤーに開示
+            dealer.send_init_cards(player_soc)
 
-            action = dealer.receive_message(player_soc)
+            # プレイヤーのアクションを受信して応答する（ループ処理）
+            while True:
 
-            # HIT の場合
-            if action == Action.HIT:
-                print("The player's action: HIT")
+                action = dealer.receive_message(player_soc)
 
-                # プレイヤーにカードを1枚配布
-                dealer.draw_player_card()
+                # HIT の場合
+                if action == Action.HIT:
+                    print("The player's action: HIT")
 
-                if dealer.player_is_busted():
-                    # プレイヤーがバーストした場合
-                    status = 'bust'
-                    dealer.send_message(psoc=player_soc, rate=0.0, status=status, send_player_card=True, send_dealer_cards=True)
-                else:
-                    # プレイヤーがバーストしなかった場合
-                    status = 'unsettled'
-                    dealer.send_message(psoc=player_soc, rate=0.0, status=status, send_player_card=True)
+                    # プレイヤーにカードを1枚配布
+                    dealer.draw_player_card()
 
-            # STAND の場合
-            elif action == Action.STAND:
-                print("The player's action: STAND")
+                    if dealer.player_is_busted():
+                        # プレイヤーがバーストした場合
+                        status = 'bust'
+                        dealer.send_message(psoc=player_soc, rate=0.0, status=status, send_player_card=True, send_dealer_cards=True)
+                    else:
+                        # プレイヤーがバーストしなかった場合
+                        status = 'unsettled'
+                        dealer.send_message(psoc=player_soc, rate=0.0, status=status, send_player_card=True)
 
-                # ルールに従ってディーラーにカードを追加
-                dealer.draw_dealer_cards()
+                # STAND の場合
+                elif action == Action.STAND:
+                    print("The player's action: STAND")
 
-                # 勝敗を判定
-                status, rate = dealer.judge()
-                dealer.send_message(psoc=player_soc, rate=rate, status=status, send_dealer_cards=True)
-
-            # DOUBLE DOWNの場合
-            elif action == Action.DOUBLE_DOWN:
-                print("The player's action: DOUBLE_DOWN")
-
-                # プレイヤーにカードを1枚配布
-                dealer.draw_player_card()
-
-                if dealer.player_is_busted():
-                    # プレイヤーがバーストした場合
-                    status = 'bust'
-                    rate = 0.0
-                else:
-                    # プレイヤーがバーストしなかった場合 => STAND の場合と同じ処理を実行
+                    # ルールに従ってディーラーにカードを追加
                     dealer.draw_dealer_cards()
+
+                    # 勝敗を判定
                     status, rate = dealer.judge()
-                dealer.send_message(psoc=player_soc, rate=rate, status=status, send_player_card=True, send_dealer_cards=True)
+                    dealer.send_message(psoc=player_soc, rate=rate, status=status, send_dealer_cards=True)
 
-            # SURRENDERの場合
-            elif action == Action.SURRENDER:
-                print("The player's action: SURRENDER")
-                status = 'surrendered'
-                dealer.send_message(psoc=player_soc, rate=0.5, status=status, send_dealer_cards=True)
+                # DOUBLE DOWNの場合
+                elif action == Action.DOUBLE_DOWN:
+                    print("The player's action: DOUBLE_DOWN")
 
-            # RETRYの場合
-            elif action == Action.RETRY:
-                print("The player's action: RETRY")
+                    # プレイヤーにカードを1枚配布
+                    dealer.draw_player_card()
 
-                # プレイヤーにカードを1枚配布
-                dealer.draw_player_card(retry_mode=True)
+                    if dealer.player_is_busted():
+                        # プレイヤーがバーストした場合
+                        status = 'bust'
+                        rate = 0.0
+                    else:
+                        # プレイヤーがバーストしなかった場合 => STAND の場合と同じ処理を実行
+                        dealer.draw_dealer_cards()
+                        status, rate = dealer.judge()
+                    dealer.send_message(psoc=player_soc, rate=rate, status=status, send_player_card=True, send_dealer_cards=True)
 
-                if dealer.player_is_busted():
-                    # プレイヤーがバーストした場合
-                    status = 'bust'
-                    dealer.send_message(psoc=player_soc, rate=0.0, status=status, send_player_card=True, send_dealer_cards=True)
+                # SURRENDERの場合
+                elif action == Action.SURRENDER:
+                    print("The player's action: SURRENDER")
+                    status = 'surrendered'
+                    dealer.send_message(psoc=player_soc, rate=0.5, status=status, send_dealer_cards=True)
+
+                # RETRYの場合
+                elif action == Action.RETRY:
+                    print("The player's action: RETRY")
+
+                    # プレイヤーにカードを1枚配布
+                    dealer.draw_player_card(retry_mode=True)
+
+                    if dealer.player_is_busted():
+                        # プレイヤーがバーストした場合
+                        status = 'bust'
+                        dealer.send_message(psoc=player_soc, rate=0.0, status=status, send_player_card=True, send_dealer_cards=True)
+                    else:
+                        # プレイヤーがバーストしなかった場合
+                        status = 'unsettled'
+                        dealer.send_message(psoc=player_soc, rate=0.0, status=status, send_player_card=True)
+
+                # 定義されていないアクションは終了要求とみなす
                 else:
-                    # プレイヤーがバーストしなかった場合
-                    status = 'unsettled'
-                    dealer.send_message(psoc=player_soc, rate=0.0, status=status, send_player_card=True)
+                    status = 'finished'
 
-            # 定義されていないアクションは終了要求とみなす
-            else:
-                status = 'finished'
+                print("The player's status: ", status)
+                if status != 'unsettled':
+                    break # HITしてバーストしなかった場合を除き，ゲーム終了
 
-            print("The player's status: ", status)
-            if status != 'unsettled':
-                break # HITしてバーストしなかった場合を除き，ゲーム終了
+            # 通信終了
+            player_soc.close()
+            print('The game has finished!')
+            print()
+            print('Wainting for a new player ...')
 
-        # 通信終了
-        player_soc.close()
-        print('The game has finished!')
-        print()
-        print('Wainting for a new player ...')
+
+if __name__ == '__main__':
+    main()

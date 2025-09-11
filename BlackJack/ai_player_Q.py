@@ -288,83 +288,90 @@ def select_action(state, strategy: Strategy):
 
 ### ここから処理開始 ###
 
-parser = argparse.ArgumentParser(description='AI Black Jack Player (Q-learning)')
-parser.add_argument('--games', type=int, default=1, help='num. of games to play')
-parser.add_argument('--history', type=str, default='play_log.csv', help='filename where game history will be saved')
-parser.add_argument('--load', type=str, default='', help='filename of Q table to be loaded before learning')
-parser.add_argument('--save', type=str, default='', help='filename where Q table will be saved after learning')
-parser.add_argument('--testmode', help='this option runs the program without learning', action='store_true')
-args = parser.parse_args()
+def main():
+    global g_retry_counter, player, soc, q_table
 
-n_games = args.games + 1
+    parser = argparse.ArgumentParser(description='AI Black Jack Player (Q-learning)')
+    parser.add_argument('--games', type=int, default=1, help='num. of games to play')
+    parser.add_argument('--history', type=str, default='play_log.csv', help='filename where game history will be saved')
+    parser.add_argument('--load', type=str, default='', help='filename of Q table to be loaded before learning')
+    parser.add_argument('--save', type=str, default='', help='filename where Q table will be saved after learning')
+    parser.add_argument('--testmode', help='this option runs the program without learning', action='store_true')
+    args = parser.parse_args()
 
-# Qテーブルをロード
-if args.load != '':
-    q_table.load(args.load)
+    n_games = args.games + 1
 
-# ログファイルを開く
-logfile = open(args.history, 'w')
-print('score,hand_length,action,result,reward', file=logfile) # ログファイルにヘッダ行（項目名の行）を出力
+    # Qテーブルをロード
+    if args.load != '':
+        q_table.load(args.load)
 
-# n_games回ゲームを実行
-for n in range(1, n_games):
+    # ログファイルを開く
+    logfile = open(args.history, 'w')
+    print('score,hand_length,action,result,reward', file=logfile) # ログファイルにヘッダ行（項目名の行）を出力
 
-    # nゲーム目を開始
-    game_start(n)
+    # n_games回ゲームを実行
+    for n in range(1, n_games):
 
-    # 「現在の状態」を取得
-    state = get_state()
+        # nゲーム目を開始
+        game_start(n)
 
-    while True:
-
-        # 次に実行する行動を選択
-        if args.testmode:
-            action = select_action(state, Strategy.QMAX)
-        else:
-            action = select_action(state, Strategy.E_GREEDY)
-        if g_retry_counter >= RETRY_MAX and action == Action.RETRY:
-            # RETRY回数が上限に達しているにもかかわらずRETRYが選択された場合，他の行動をランダムに選択
-            action = np.random.choice([
-                Action.HIT, Action.STAND, Action.DOUBLE_DOWN, Action.SURRENDER
-            ])
-        action_name = get_action_name(action) # 行動名を表す文字列を取得
-
-        # 選択した行動を実際に実行
-        # 戻り値:
-        #   - done: 終了フラグ．今回の行動によりゲームが終了したか否か（終了した場合はTrue, 続行中ならFalse）
-        #   - reward: 獲得金額（ゲーム続行中の場合は 0 , ただし RETRY を実行した場合は1回につき -BET/4 ）
-        #   - status: 行動実行後のプレイヤーステータス（バーストしたか否か，勝ちか負けか，などの状態を表す文字列）
-        reward, done, status = act(action)
-
-        # 実行した行動がRETRYだった場合はRETRY回数カウンターを1増やす
-        if action == Action.RETRY:
-            g_retry_counter += 1
-
-        # 「現在の状態」を再取得
-        prev_state = state # 行動前の状態を別変数に退避
-        prev_score = prev_state[0] # 行動前のプレイヤー手札のスコア（prev_state の一つ目の要素）
+        # 「現在の状態」を取得
         state = get_state()
-        score = state[0] # 行動後のプレイヤー手札のスコア（state の一つ目の要素）
 
-        # Qテーブルを更新
-        if not args.testmode:
-            _, V = q_table.get_best_action(state, with_value=True)
-            Q = q_table.get_Q_value(prev_state, action) # 現在のQ値
-            Q = (1 - LEARNING_RATE) * Q + LEARNING_RATE * (reward + DISCOUNT_FACTOR * V) # 新しいQ値
-            q_table.set_Q_value(prev_state, action, Q) # 新しいQ値を登録
+        while True:
 
-        # ログファイルに「行動前の状態」「行動の種類」「行動結果」「獲得金額」などの情報を記録
-        print('{},{},{},{},{}'.format(prev_state[0], prev_state[1], action_name, status, reward), file=logfile)
+            # 次に実行する行動を選択
+            if args.testmode:
+                action = select_action(state, Strategy.QMAX)
+            else:
+                action = select_action(state, Strategy.E_GREEDY)
+            if g_retry_counter >= RETRY_MAX and action == Action.RETRY:
+                # RETRY回数が上限に達しているにもかかわらずRETRYが選択された場合，他の行動をランダムに選択
+                action = np.random.choice([
+                    Action.HIT, Action.STAND, Action.DOUBLE_DOWN, Action.SURRENDER
+                ])
+            action_name = get_action_name(action) # 行動名を表す文字列を取得
 
-        # 終了フラグが立った場合はnゲーム目を終了
-        if done == True:
-            break
+            # 選択した行動を実際に実行
+            # 戻り値:
+            #   - done: 終了フラグ．今回の行動によりゲームが終了したか否か（終了した場合はTrue, 続行中ならFalse）
+            #   - reward: 獲得金額（ゲーム続行中の場合は 0 , ただし RETRY を実行した場合は1回につき -BET/4 ）
+            #   - status: 行動実行後のプレイヤーステータス（バーストしたか否か，勝ちか負けか，などの状態を表す文字列）
+            reward, done, status = act(action)
 
-    print('')
+            # 実行した行動がRETRYだった場合はRETRY回数カウンターを1増やす
+            if action == Action.RETRY:
+                g_retry_counter += 1
 
-# ログファイルを閉じる
-logfile.close()
+            # 「現在の状態」を再取得
+            prev_state = state # 行動前の状態を別変数に退避
+            prev_score = prev_state[0] # 行動前のプレイヤー手札のスコア（prev_state の一つ目の要素）
+            state = get_state()
+            score = state[0] # 行動後のプレイヤー手札のスコア（state の一つ目の要素）
 
-# Qテーブルをセーブ
-if args.save != '':
-    q_table.save(args.save)
+            # Qテーブルを更新
+            if not args.testmode:
+                _, V = q_table.get_best_action(state, with_value=True)
+                Q = q_table.get_Q_value(prev_state, action) # 現在のQ値
+                Q = (1 - LEARNING_RATE) * Q + LEARNING_RATE * (reward + DISCOUNT_FACTOR * V) # 新しいQ値
+                q_table.set_Q_value(prev_state, action, Q) # 新しいQ値を登録
+
+            # ログファイルに「行動前の状態」「行動の種類」「行動結果」「獲得金額」などの情報を記録
+            print('{},{},{},{},{}'.format(prev_state[0], prev_state[1], action_name, status, reward), file=logfile)
+
+            # 終了フラグが立った場合はnゲーム目を終了
+            if done == True:
+                break
+
+        print('')
+
+    # ログファイルを閉じる
+    logfile.close()
+
+    # Qテーブルをセーブ
+    if args.save != '':
+        q_table.save(args.save)
+
+
+if __name__ == '__main__':
+    main()

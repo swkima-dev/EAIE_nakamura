@@ -269,62 +269,69 @@ def select_action(state):
 
 ### ここから処理開始 ###
 
-parser = argparse.ArgumentParser(description='AI Black Jack Player (random strategy)')
-parser.add_argument('--games', type=int, default=1, help='num. of games to play')
-parser.add_argument('--history', type=str, default='play_log.csv', help='filename where game history will be saved')
-args = parser.parse_args()
+def main():
+    global g_retry_counter, player, soc
 
-n_games = args.games + 1
+    parser = argparse.ArgumentParser(description='AI Black Jack Player (random strategy)')
+    parser.add_argument('--games', type=int, default=1, help='num. of games to play')
+    parser.add_argument('--history', type=str, default='play_log.csv', help='filename where game history will be saved')
+    args = parser.parse_args()
 
-# ログファイルを開く
-logfile = open(args.history, 'w')
-print('score,hand_length,action,result,reward', file=logfile) # ログファイルにヘッダ行（項目名の行）を出力
+    n_games = args.games + 1
 
-# n_games回ゲームを実行
-for n in range(1, n_games):
+    # ログファイルを開く
+    logfile = open(args.history, 'w')
+    print('score,hand_length,action,result,reward', file=logfile) # ログファイルにヘッダ行（項目名の行）を出力
 
-    # nゲーム目を開始
-    game_start(n)
+    # n_games回ゲームを実行
+    for n in range(1, n_games):
 
-    # 「現在の状態」を取得
-    state = get_state()
+        # nゲーム目を開始
+        game_start(n)
 
-    while True:
-
-        # 次に実行する行動を選択
-        action = select_action(state) # このプログラムでは state によらずランダム選択なので，state の指定は実質無意味
-        if g_retry_counter >= RETRY_MAX and action == Action.RETRY:
-            # RETRY回数が上限に達しているにもかかわらずRETRYが選択された場合，他の行動をランダムに選択
-            action = np.random.choice([
-                Action.HIT, Action.STAND, Action.DOUBLE_DOWN, Action.SURRENDER
-            ])
-        action_name = get_action_name(action) # 行動名を表す文字列を取得
-
-        # 選択した行動を実際に実行
-        # 戻り値:
-        #   - done: 終了フラグ．今回の行動によりゲームが終了したか否か（終了した場合はTrue, 続行中ならFalse）
-        #   - reward: 獲得金額（ゲーム続行中の場合は 0 , ただし RETRY を実行した場合は1回につき -BET/4 ）
-        #   - status: 行動実行後のプレイヤーステータス（バーストしたか否か，勝ちか負けか，などの状態を表す文字列）
-        reward, done, status = act(action)
-
-        # 実行した行動がRETRYだった場合はRETRY回数カウンターを1増やす
-        if action == Action.RETRY:
-            g_retry_counter += 1
-
-        # 「現在の状態」を再取得
-        prev_state = state # 行動前の状態を別変数に退避
-        prev_score = prev_state[0] # 行動前のプレイヤー手札のスコア（prev_state の一つ目の要素）
+        # 「現在の状態」を取得
         state = get_state()
-        score = state[0] # 行動後のプレイヤー手札のスコア（state の一つ目の要素）
 
-        # ログファイルに「行動前の状態」「行動の種類」「行動結果」「獲得金額」などの情報を記録
-        print('{},{},{},{},{}'.format(prev_state[0], prev_state[1], action_name, status, reward), file=logfile)
+        while True:
 
-        # 終了フラグが立った場合はnゲーム目を終了
-        if done == True:
-            break
+            # 次に実行する行動を選択
+            action = select_action(state) # このプログラムでは state によらずランダム選択なので，state の指定は実質無意味
+            if g_retry_counter >= RETRY_MAX and action == Action.RETRY:
+                # RETRY回数が上限に達しているにもかかわらずRETRYが選択された場合，他の行動をランダムに選択
+                action = np.random.choice([
+                    Action.HIT, Action.STAND, Action.DOUBLE_DOWN, Action.SURRENDER
+                ])
+            action_name = get_action_name(action) # 行動名を表す文字列を取得
 
-    print('')
+            # 選択した行動を実際に実行
+            # 戻り値:
+            #   - done: 終了フラグ．今回の行動によりゲームが終了したか否か（終了した場合はTrue, 続行中ならFalse）
+            #   - reward: 獲得金額（ゲーム続行中の場合は 0 , ただし RETRY を実行した場合は1回につき -BET/4 ）
+            #   - status: 行動実行後のプレイヤーステータス（バーストしたか否か，勝ちか負けか，などの状態を表す文字列）
+            reward, done, status = act(action)
 
-# ログファイルを閉じる
-logfile.close()
+            # 実行した行動がRETRYだった場合はRETRY回数カウンターを1増やす
+            if action == Action.RETRY:
+                g_retry_counter += 1
+
+            # 「現在の状態」を再取得
+            prev_state = state # 行動前の状態を別変数に退避
+            prev_score = prev_state[0] # 行動前のプレイヤー手札のスコア（prev_state の一つ目の要素）
+            state = get_state()
+            score = state[0] # 行動後のプレイヤー手札のスコア（state の一つ目の要素）
+
+            # ログファイルに「行動前の状態」「行動の種類」「行動結果」「獲得金額」などの情報を記録
+            print('{},{},{},{},{}'.format(prev_state[0], prev_state[1], action_name, status, reward), file=logfile)
+
+            # 終了フラグが立った場合はnゲーム目を終了
+            if done == True:
+                break
+
+        print('')
+
+    # ログファイルを閉じる
+    logfile.close()
+
+
+if __name__ == '__main__':
+    main()
