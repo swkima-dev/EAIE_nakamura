@@ -71,8 +71,8 @@ def main():
     train_dataset, valid_dataset = random_split(dataset, [train_size, valid_size])
 
     # 訓練データおよび検証用データをミニバッチに分けて使用するための「データローダ」を用意
-    train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
-    valid_dataloader = DataLoader(valid_dataset, batch_size=BATCH_SIZE, shuffle=False, pin_memory=True)
+    train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, pin_memory=False)
+    valid_dataloader = DataLoader(valid_dataset, batch_size=BATCH_SIZE, shuffle=False, pin_memory=False)
 
     # ニューラルネットワークの作成
     model = SampleCNN(C=C, H=H, W=W, N=n_classes).to(DEVICE)
