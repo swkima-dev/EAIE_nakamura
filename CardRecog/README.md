@@ -34,6 +34,18 @@ python CardRecog_train.py --gpu 0 --epochs 20 --batchsize 256 --autosave
 
 ## CardRecog_test.py
 
+上記の CardRecog_train.py で学習した認識モデルを用いて実際にカードの種類・スートを認識するプログラム．  
+カメラを駆動してリアルタイムに認識処理を実行しますので，事前にUSBカメラをPCに接続しておく必要があります．
+
+**コマンド例**
+```
+python CardRecog_test.py --gpu 0
+```
+**オプション**
+- gpu
+  - 使用するGPUのID
+  - デフォルト値も含めて CardRecog_train.py の同名オプションと同じです．
+
 ## CardRecog_train2.py
 
 まず絵札か否かを判定し，絵札の場合は3種類(J,Q,K)×スート4種類の12クラス分類を，非絵札の場合は数字10種類×スート4種類の40クラス分類をそれぞれ実行する，
@@ -48,16 +60,19 @@ python CardRecog_train2.py --gpu 0 --epochs 20 --batchsize 256 --autosave
 **オプション**
 - gpu
   - 使用するGPUのID
-  - デフォルト値も含めて MLP_train.py の同名オプションと同じです．
+  - デフォルト値も含めて CardRecog_train.py の同名オプションと同じです．
 - epochs
   - 何エポック分学習するか
-  - MLP_train.py の同名オプションと同じですが，指定しない場合のデフォルト値は 10 となっています．
+  - デフォルト値も含めて CardRecog_train.py の同名オプションと同じです．
 - batchsize
   - バッチサイズ
-  - デフォルト値も含めて MLP_train.py の同名オプションと同じです．
+  - デフォルト値も含めて CardRecog_train.py の同名オプションと同じです．
 - autosave
   - 指定すると毎エポック終了時にモデルパラメータが自動保存されるようになります．
   - 保存先は ./CNN_models/{autosaved_cc_model_epX.pth, autosaved_pcc_model_epX.pth, autosaved_ncc_model_epX.pth} です（ X はエポック番号 ）．
+    - autosaved_cc_model_epX.pth: 絵札か否かを判定するモデル
+    - autosaved_pcc_model_epX.pth: 絵札に関する12クラス分類を行うモデル
+    - autosaved_ncc_model_epX.pth: 非絵札に関する40クラス分類を行うモデル
 
 ## CardRecog_test2.py
 
