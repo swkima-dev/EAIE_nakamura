@@ -49,7 +49,7 @@ def main():
     test_size = len(test_dataset)
 
     # テストデータをミニバッチに分けて使用するための「データローダ」を用意
-    test_dataloader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False, pin_memory=True)
+    test_dataloader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False, pin_memory=False)
 
     # ニューラルネットワークの作成
     model = SampleMLP()

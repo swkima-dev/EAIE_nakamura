@@ -64,8 +64,8 @@ def main():
     train_dataset, valid_dataset = random_split(dataset, [train_size, valid_size])
 
     # 訓練データおよび検証用データをミニバッチに分けて使用するための「データローダ」を用意
-    train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
-    valid_dataloader = DataLoader(valid_dataset, batch_size=BATCH_SIZE, shuffle=False, pin_memory=True)
+    train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, pin_memory=False)
+    valid_dataloader = DataLoader(valid_dataset, batch_size=BATCH_SIZE, shuffle=False, pin_memory=False)
 
     # 学習経過を可視化する準備
     if VISUALIZE:
@@ -107,7 +107,7 @@ def main():
             loss = loss_func(Y_pred, Y) # 損失関数の現在値を計算
             loss.backward() # 誤差逆伝播法により，個々のパラメータに関する損失関数の勾配（偏微分）を計算
             optimizer.step() # 勾配に沿ってパラメータの値を更新
-            sum_loss += float(loss) * len(X)
+            sum_loss += float(loss.detach()) * len(X)
         avg_loss = sum_loss / train_size
         print('train loss = {0:.6f}'.format(avg_loss))
 
@@ -121,7 +121,7 @@ def main():
                 Y = Y.to(DEVICE)
                 Y_pred = model(X)
                 loss = loss_func(Y_pred, Y)
-                sum_loss += float(loss) * len(X)
+                sum_loss += float(loss.detach()) * len(X)
                 n_failed += torch.count_nonzero(torch.argmax(Y_pred, dim=1) - Y) # 推定値と正解値が一致していないデータの個数を数える
         avg_loss = sum_loss / valid_size
         accuracy = (valid_size - n_failed) / valid_size

@@ -101,7 +101,7 @@ def main():
             loss = loss_func(Y_pred, Y) # 損失関数の現在値を計算
             loss.backward() # 誤差逆伝播法により，個々のパラメータに関する損失関数の勾配（偏微分）を計算
             optimizer.step() # 勾配に沿ってパラメータの値を更新
-            sum_loss += float(loss) * len(X)
+            sum_loss += float(loss.detach()) * len(X)
         avg_loss = sum_loss / train_size
         print('train loss = {0:.6f}'.format(avg_loss))
 
@@ -115,7 +115,7 @@ def main():
                 Y = Y.to(DEVICE)
                 Y_pred = model(X)
                 loss = loss_func(Y_pred, Y)
-                sum_loss += float(loss) * len(X)
+                sum_loss += float(loss.detach()) * len(X)
                 n_failed += torch.count_nonzero(torch.argmax(Y_pred, dim=1) - Y) # 推定値と正解値が一致していないデータの個数を数える
         avg_loss = sum_loss / valid_size
         accuracy = (valid_size - n_failed) / valid_size
