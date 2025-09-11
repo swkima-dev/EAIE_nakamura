@@ -151,7 +151,6 @@ class SampleCNN(nn.Module):
         return y
 
 
-
 # SampleCNN と同じニューラルネットワークを basic_layers.py に記載の自作モジュールで作成したもの
 class myCNN(nn.Module):
 
