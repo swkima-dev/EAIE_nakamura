@@ -471,7 +471,7 @@ class Window:
         self.root.update()
 
 
-if __name__ == '__main__':
+def main():
 
     parser = argparse.ArgumentParser(description='Q Learning Demo')
     parser.add_argument('--load', type=str, default='', help='filename of Q table to be loaded before learning')
@@ -496,3 +496,7 @@ if __name__ == '__main__':
     # Q table をセーブ
     if args.save != '':
         win.field.q_table.save(args.save)
+
+
+if __name__ == '__main__':
+    main()
