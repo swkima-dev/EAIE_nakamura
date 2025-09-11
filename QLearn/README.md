@@ -97,25 +97,25 @@ python Acrobot_v1.py --games 10 --max_steps 200 --randmode
 **オプション**
 - いずれも CartPole_v1.py の同名オプションと全く同じです．
 
-## LunarLander_v2.py
+## LunarLander_v3.py
 
-OpenAI Gym (gymnasium) の Box2D タスクの一つ LunarLander-v2 を通常のQ学習で解くプログラム（のひな型）．  
+OpenAI Gym (gymnasium) の Box2D タスクの一つ LunarLander-v3 を通常のQ学習で解くプログラム（のひな型）．  
 タスクの内容については下記サイトなどをご参照ください．  
 https://gymnasium.farama.org/environments/box2d/lunar_lander/
 
 **コマンド例**
 ```
 # 一から学習する場合
-python LunarLander_v2.py --games 10 --max_steps 200 --save QTable.pkl
+python LunarLander_v3.py --games 10 --max_steps 200 --save QTable.pkl
 
 # 学習済みQテーブルをロードし，そこから学習を再開して新たなQテーブルを作成・保存する場合
-python LunarLander_v2.py --games 10 --max_steps 200 --load QTable.pkl --save new_QTable.pkl
+python LunarLander_v3.py --games 10 --max_steps 200 --load QTable.pkl --save new_QTable.pkl
 
 # 学習済みQテーブルをロードして単にタスクを実行するだけの場合
-python LunarLander_v2.py --games 10 --max_steps 200 --load QTable.pkl --testmode
+python LunarLander_v3.py --games 10 --max_steps 200 --load QTable.pkl --testmode
 
 # Qテーブルを用いずにランダム戦略でタスクを実行する場合
-python LunarLander_v2.py --games 10 --max_steps 200 --randmode
+python LunarLander_v3.py --games 10 --max_steps 200 --randmode
 ```
 **オプション**
 - いずれも CartPole_v1.py の同名オプションと全く同じです．
