@@ -9,7 +9,7 @@ import torch.nn as nn
 import torch.optim as optim
 from tqdm import tqdm
 from torch.utils.data import DataLoader, random_split
-from networks import SampleMLP, myMLP
+from networks import SampleMLP, myMLP #同フォルダ内のnetworks.pyを使用
 from mylib.data_io import CSVBasedDataset
 from mylib.visualizers import ClassifierVisualizer
 from mylib.utility import print_args
@@ -51,7 +51,7 @@ def main():
         ],
         dtypes = [
             'float', # Xの型
-            'label' # Yの型
+            'label' # Yの型 晴曇雨を0, 1, 2に勝手に変換
         ],
     )
     with open(os.path.join(MODEL_DIR, 'fdicts.pkl'), 'wb') as fdicts_file:
@@ -98,7 +98,7 @@ def main():
         # 学習
         model.train()
         sum_loss = 0
-        for X, Y in tqdm(train_dataloader):
+        for X, Y in tqdm(train_dataloader): # ミニバッチごとに学習, X, Y はそれぞれミニバッチに含まれる入力データと正解ラベル
             for param in model.parameters():
                 param.grad = None
             X = X.to(DEVICE)
