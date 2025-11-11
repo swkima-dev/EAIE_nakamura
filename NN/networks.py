@@ -54,19 +54,23 @@ class myMLP(nn.Module):
     def __init__(self):
         super(myMLP, self).__init__()
 
-        # 1層目: 2次元入力 → 10パーセプトロン（バッチ正規化あり, ドロップアウトなし, 活性化関数 ReLU）
-        self.layer1 = FC(in_features=2, out_features=10, do_bn=True, activation='relu')
+        # 1層目: 2次元入力 → 100パーセプトロン（バッチ正規化あり, ドロップアウトなし, 活性化関数 ReLU）
+        self.layer1 = FC(in_features=31, out_features=100, do_bn=True, activation='relu')
 
-        # 2層目: 10パーセプトロン → 10パーセプトロン（バッチ正規化なし, ドロップアウトあり（ドロップアウト率 0.5）, 活性化関数 Tanh）
-        self.layer2 = FC(in_features=10, out_features=10, do_bn=False, dropout_ratio=0.5, activation='tanh')
+        # 2層目: 100パーセプトロン → 30パーセプトロン（バッチ正規化なし, ドロップアウトあり（ドロップアウト率 0.5）, 活性化関数 Tanh）
+        self.layer2 = FC(in_features=100, out_features=30, do_bn=False, dropout_ratio=0.5, activation='tanh')
 
-        # 3層目: 10パーセプトロン → 3クラス出力（バッチ正規化なし, ドロップアウトなし, 活性化関数なし）
-        self.layer3 = FC(in_features=10, out_features=3, do_bn=False, activation='none')
+        # 3層目: 30パーセプトロン → 10クラス出力（バッチ正規化なし, ドロップアウトあり, 活性化関数なし）
+        self.layer3 = FC(in_features=30, out_features=10, do_bn=False, dropout_ratio=0.5, activation='sigmoid')
+
+        # 4層目: 10パーセプトロン → 2クラス出力（バッチ正規化なし, ドロップアウトなし, 活性化関数なし）
+        self.layer4 = FC(in_features=10, out_features=2, do_bn=False, activation='none')
 
     def forward(self, x):
         h = self.layer1(x) # 1層目にデータを入力
         h = self.layer2(h) # 続いて2層目に通す
-        y = self.layer3(h) # 最後に3層目に通す
+        y = self.layer3(h) # 003層目に通す
+        y = self.layer4(y) # 最後に4層目に通す
         return y
 
 
@@ -206,4 +210,27 @@ class myCNN(nn.Module):
         h = self.flat3(h) # 続いて平坦化層3に通す（この時点で3次元的な構造を持つ特徴マップが一列に並べ直される）
         h = self.fc4(h)   # 続いて全結合層4に通す
         y = self.fc5(h)   # 最後に全結合層5に通す
+        return y
+
+
+# SampleMLP と同じニューラルネットワークを basic_layers.py に記載の自作モジュールで作成したもの
+# 3層構成に変更
+class myMLP2(nn.Module):
+
+    def __init__(self):
+        super(myMLP2, self).__init__()
+
+        # 1層目: 2次元入力 → 100パーセプトロン（バッチ正規化あり, ドロップアウトなし, 活性化関数 ReLU）
+        self.layer1 = FC(in_features=31, out_features=100, do_bn=True, activation='relu')
+
+        # 2層目: 100パーセプトロン → 10パーセプトロン（バッチ正規化なし, ドロップアウトあり（ドロップアウト率 0.5）, 活性化関数 Tanh）
+        self.layer2 = FC(in_features=100, out_features=10, do_bn=False, dropout_ratio=0.5, activation='tanh')
+
+        # 3層目: 10パーセプトロン → 2クラス出力（バッチ正規化なし, ドロップアウトなし, 活性化関数なし）
+        self.layer3 = FC(in_features=10, out_features=2, do_bn=False, activation='none')
+
+    def forward(self, x):
+        h = self.layer1(x) # 1層目にデータを入力
+        h = self.layer2(h) # 続いて2層目に通す
+        y = self.layer3(h) # 最後に3層目に通す
         return y

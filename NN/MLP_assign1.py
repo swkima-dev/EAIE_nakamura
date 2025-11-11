@@ -9,21 +9,22 @@ import torch.nn as nn
 import torch.optim as optim
 from tqdm import tqdm
 from torch.utils.data import DataLoader, random_split
-from networks import SampleMLP, myMLP #同フォルダ内のnetworks.pyを使用
+from networks import SampleMLP, myMLP, myMLP2 #同フォルダ内のnetworks.pyを使用
 from mylib.data_io import CSVBasedDataset
 from mylib.visualizers import ClassifierVisualizer
 from mylib.utility import print_args
+import matplotlib.pyplot as plt
 
 
 # データセットファイル
-DATASET_CSV = './csv_data/weather_train.csv'
+DATASET_CSV = './csv_data/mushroom_train.csv'
 
 # 学習結果の保存先フォルダ
 MODEL_DIR = './MLP_models'
 
 # 学習過程を可視化するか否か
 # 入力が2次元ベクトルでないときにTrueを指定するとエラーになる
-VISUALIZE = True
+VISUALIZE = False
 
 
 def main():
@@ -43,14 +44,15 @@ def main():
     AUTO_SAVE = args['autosave']
 
     # CSVファイルを読み込み, 訓練データセットを用意
+    
     dataset = CSVBasedDataset(
         filename = DATASET_CSV,
         items = [
-            ['平均気温', '平均湿度'], # X
-            '天気概況' # Y
+            ['0: 傘の形', '1: 傘の表面の質感', '2: 傘の色', '3: 斑点の有無', '4: におい'], # X
+            '20: 食毒' # Y
         ],
         dtypes = [
-            'float', # Xの型
+            'one-hot', # Xの型
             'label' # Yの型 晴曇雨を0, 1, 2に勝手に変換
         ],
     )
@@ -81,14 +83,19 @@ def main():
         samples_for_visualization = train_dataset[:200]
 
     # ニューラルネットワークの作成
-    model = SampleMLP().to(DEVICE)
-    #model = myMLP().to(DEVICE) # myMLPクラスを用いる場合はこちらを使用
+    # model = SampleMLP().to(DEVICE)
+    model = myMLP().to(DEVICE) # myMLPクラスを用いる場合はこちらを使用
+    # model = myMLP2().to(DEVICE) # myMLP2クラスを用いる場合はこちらを使用
 
     # 最適化アルゴリズムの指定（ここでは Adam を使用）
     optimizer = optim.Adam(model.parameters())
 
     # 損失関数：クロスエントロピー損失を使用
     loss_func = nn.CrossEntropyLoss()
+
+    # 学習過程の損失を保存するリスト
+    train_losses = []
+    valid_losses = []
 
     # 勾配降下法による繰り返し学習
     for epoch in range(N_EPOCHS):
@@ -110,6 +117,8 @@ def main():
             sum_loss += float(loss.detach()) * len(X)
         avg_loss = sum_loss / train_size
         print('train loss = {0:.6f}'.format(avg_loss))
+        # エポックごとの学習損失を記録
+        train_losses.append(avg_loss)
 
         # 検証
         model.eval()
@@ -129,6 +138,9 @@ def main():
         print('accuracy = {0:.2f}%'.format(100 * accuracy))
         print('')
 
+        # エポックごとの検証損失を記録
+        valid_losses.append(avg_loss)
+
         # 学習途中のモデルの保存
         if AUTO_SAVE:
             torch.save(model.to('cpu').state_dict(), os.path.join(MODEL_DIR, 'autosaved_model_ep{0}.pth'.format(epoch + 1)))
@@ -144,6 +156,29 @@ def main():
             )
 
     # 学習結果のニューラルネットワークモデルをファイルに保存
+    # 学習経過の損失をプロットして保存・表示
+    try:
+        os.makedirs(MODEL_DIR, exist_ok=True)
+        plt.figure()
+        epochs = list(range(1, len(train_losses) + 1))
+        plt.plot(epochs, train_losses, label='train loss', marker='o')
+        plt.plot(epochs, valid_losses, label='valid loss', marker='o')
+        plt.xlabel('Epoch')
+        plt.ylabel('Loss')
+        plt.title('Training and Validation Loss')
+        plt.legend()
+        plot_path = os.path.join(MODEL_DIR, 'loss_plot.png')
+        plt.tight_layout()
+        plt.savefig(plot_path)
+        # 表示を試みる（GUI 環境が無ければ例外が出ることがあるため try/except）
+        try:
+            plt.show()
+        except Exception:
+            pass
+        print('Loss plot saved to {}'.format(plot_path))
+    except Exception as e:
+        print('Could not save/plot loss: {}'.format(e))
+
     torch.save(model.to('cpu').state_dict(), MODEL_PATH)
 
 

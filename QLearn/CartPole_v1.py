@@ -26,7 +26,7 @@ def get_action_name(action: Action):
         return 'UNDEFINED'
 
 # Q学習の設定値（これらの設定値が妥当だとは限らない）
-EPS = 0.1 # ε-greedyにおけるε
+EPS = 0.1 # ε-greedyにおけるε 徐々に減らしたりするといいかも
 LEARNING_RATE = 0.1 # 学習率
 DISCOUNT_FACTOR = 0.9 # 割引率
 
@@ -48,7 +48,7 @@ Q学習を実行するためには, 上記の4次元ベクトルを適当に離�
 '''
 def get_state(observation):
 
-    # 観測量の離散化
+    # 観測量の離散化　ここも工夫の余地あり
     cart_pos = np.digitize(observation[0], bins=[-4.8, -2.4, 0, 2.4, 4.8]) # 1次元目
     cart_vel = np.digitize(observation[1], bins=[-3.0, -1.5, 0, 1.5, 3.0]) # 2次元目
     pole_ang = np.digitize(observation[2], bins=[-0.4, -0.2, 0, 0.2, 0.4]) # 3次元目
@@ -83,10 +83,11 @@ def select_action(state, strategy: Strategy):
 ### ここから処理開始 ###
 
 def main():
+    global EPS
 
     parser = argparse.ArgumentParser(description='OpenAI Gym CartPole-v0')
     parser.add_argument('--games', type=int, default=1, help='num. of games to play')
-    parser.add_argument('--max_steps', type=int, default=200, help='max num. of steps per game')
+    parser.add_argument('--max_steps', type=int, default=500, help='max num. of steps per game')
     parser.add_argument('--load', type=str, default='', help='filename of Q table to be loaded before learning')
     parser.add_argument('--save', type=str, default='', help='filename where Q table will be saved after learning')
     parser.add_argument('--testmode', help='this option runs the program without learning', action='store_true')
@@ -100,8 +101,8 @@ def main():
     MAX_STEPS = args.max_steps
 
     # ゲーム環境を作成
-    env = gym.make(GAME_NAME, render_mode='human')
-    #env = gym.make(GAME_NAME) # このように render_mode='human' の指定を外すとゲーム画面が描画されなくなり高速に動作する
+    # env = gym.make(GAME_NAME, render_mode='human')
+    env = gym.make(GAME_NAME) # このように render_mode='human' の指定を外すとゲーム画面が描画されなくなり高速に動作する
 
     # Qテーブルをロード
     if args.load != '':
@@ -110,7 +111,8 @@ def main():
     # ゲームを N_GAMES 回実行
     for game_ID in range(1, N_GAMES):
 
-        print('Game {0} start.'.format(game_ID))
+        if game_ID % 100 == 0:
+            EPS *= 0.9 # εを徐々に減少させる
 
         # まず，ゲームを初期化
         observation, info = env.reset()
@@ -138,7 +140,7 @@ def main():
             #   - truncated, info: このプログラムでは使用しない
             observation, reward, done, truncated, info = env.step(ACTION_ID[action])
             state = get_state(observation)
-            total_reward += reward
+            total_reward += reward # 報酬の設定も工夫の余地あり
 
             # Qテーブルを更新
             if not (args.testmode or args.randmode):
