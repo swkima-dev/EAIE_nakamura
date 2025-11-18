@@ -1,3 +1,2 @@
 score,hand_length,action,result,reward
-8,2,HIT,unsettled,0
-18,3,STAND,win,20
+18,2,STAND,win,20
