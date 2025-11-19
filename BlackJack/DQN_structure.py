@@ -9,11 +9,11 @@ class QNetwork(nn.Module):
     def __init__(self):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(4, 128),
-            nn.ReLU(),
-            nn.Linear(128, 128),
-            nn.ReLU(),
-            nn.Linear(128, 5)
+            nn.Linear(5, 128),
+            nn.LeakyReLU(),
+            nn.Linear(128, 64),
+            nn.LeakyReLU(),
+            nn.Linear(64, 5)
         )
 
     def forward(self, x):
