@@ -2,12 +2,15 @@ import copy
 import socket
 import argparse
 import numpy as np
+import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from classes import Action, Strategy, QTable, Player, get_card_info, get_action_name
 from config import PORT, BET, INITIAL_MONEY, N_DECKS
 from DQN_structure import QNetwork
+from collections import deque
+import random
 
 
 # 1ゲームあたりのRETRY回数の上限
@@ -30,8 +33,8 @@ soc = None
 
 # Q学習の設定値
 EPS = 0.2 # ε-greedyにおけるε
-LEARNING_RATE = 0.05 # 学習率
-DISCOUNT_FACTOR = 0.95 # 割引率
+LEARNING_RATE = 0.01 # 学習率
+DISCOUNT_FACTOR = 0.5 # 割引率
 
 
 # ActionとNNの出力インデックスの対応表
@@ -339,24 +342,19 @@ def select_action_dqn(state, strategy: Strategy):
 
 
 # DQNの1ステップ学習
-def train_step(q_net, optimizer, state, action, reward, next_state, done):
-    state_tensor = torch.tensor([state], dtype=torch.float32)
-    next_state_tensor = torch.tensor([next_state], dtype=torch.float32)
-    reward_tensor = torch.tensor([reward], dtype=torch.float32)
+def train_step(q_net, optimizer, batch, gamma=0.99):
+    states, actions, rewards, next_states, dones = batch
 
-    q_values = q_net(state_tensor)[0]
-    a_idx = action_to_index(action)
-    q_value = q_values[a_idx]
+    # Q(s, a) の予測値（batch_size × action_dim）
+    q_values = q_net(states)
+    q_values = q_values.gather(1, actions.unsqueeze(1)).squeeze(1)
 
+    # Q_target = r + γ max_a' Q(s', a')
     with torch.no_grad():
-        if done:
-            target = reward_tensor
-        else:
-            next_q_values = q_net(next_state_tensor)
-            max_next_q_value = torch.max(next_q_values)
-            target = reward_tensor + DISCOUNT_FACTOR * max_next_q_value
+        next_q_values = q_net(next_states).max(1)[0]
+        target = rewards + gamma * next_q_values * (1 - dones)
 
-    loss = F.mse_loss(q_value, target)
+    loss = ((target - q_values)**2).mean()
 
     optimizer.zero_grad()
     loss.backward()
@@ -366,10 +364,40 @@ def train_step(q_net, optimizer, state, action, reward, next_state, done):
 
 
 
+class ReplayBuffer:
+    def __init__(self, capacity=10000):
+        self.buffer = deque(maxlen=capacity)
+
+    def push(self, state, action, reward, next_state, done):
+        self.buffer.append((state, action, reward, next_state, done))
+
+    def sample(self, batch_size):
+        batch = random.sample(self.buffer, batch_size)
+        states, actions, rewards, next_states, dones = zip(*batch)
+
+        return (
+            torch.tensor(states, dtype=torch.float32),
+            torch.tensor(actions, dtype=torch.long),
+            torch.tensor(rewards, dtype=torch.float32),
+            torch.tensor(next_states, dtype=torch.float32),
+            torch.tensor(dones, dtype=torch.float32),
+        )
+    
+    def __len__(self):
+        return len(self.buffer)
+
+
+
+
 ### ここから処理開始 ###
 
 def main():
     global g_retry_counter, player, soc, q_net, optimizer
+
+    losses = []
+    buffer = ReplayBuffer(capacity=20000)
+    batch_size = 32
+
 
     parser = argparse.ArgumentParser(description='AI Black Jack Player (Q-learning)')
     parser.add_argument('--games', type=int, default=1, help='num. of games to play')
@@ -438,9 +466,14 @@ def main():
             state = get_state()
             score = state[0] # 行動後のプレイヤー手札のスコア（state の一つ目の要素）
 
+            buffer.push(prev_state, action_to_index(action), reward, state, done)
+
             # DQNで学習
             if not args.testmode:
-                loss = train_step(q_net, optimizer, prev_state, action, reward, state, done)
+                if len(buffer) > batch_size:
+                    batch = buffer.sample(batch_size)
+                    loss = train_step(q_net, optimizer, batch)
+                    losses.append(loss)
 
             # ログファイルに「行動前の状態」「行動の種類」「行動結果」「獲得金額」などの情報を記録
             print('{},{},{},{},{}'.format(prev_state[0], prev_state[1], action_name, status, reward), file=logfile)
@@ -459,6 +492,13 @@ def main():
         # DQNのNNパラメータをセーブ
         torch.save(q_net.state_dict(), args.save)
 
+    # 損失のグラフを表示
+    if not args.testmode:
+        plt.plot(losses)
+        plt.xlabel('Iteration')
+        plt.ylabel('Loss')
+        plt.title('Training Loss over Time')
+        plt.show()
 
 if __name__ == '__main__':
     main()
