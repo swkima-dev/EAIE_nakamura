@@ -97,6 +97,22 @@ class Hand:
                 score += 11
         return score
 
+    # have_aceを返す
+    def has_usable_ace(self):
+        tmp = []
+        ace_count = 0
+        for card in self.cards:
+            value = min(10, (card % 13) + 1)
+            if value == 1:
+                ace_count += 1
+            else:
+                tmp.append(value)
+        if ace_count == 0:
+            return False
+        base = sum(tmp) + (ace_count - 1)  # 2枚目以降のAは1点扱い
+        return base + 11 <= 21
+
+
     # ナチュラルブラックジャックか否かを判定
     def is_nbj(self):
         if self.get_score() == 21 and len(self.cards) == 2:

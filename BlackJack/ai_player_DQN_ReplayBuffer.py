@@ -30,20 +30,13 @@ player = Player(initial_money=INITIAL_MONEY, basic_bet=BET)
 # ディーラーとの通信用ソケット
 soc = None
 
+# # Q学習用のQテーブル
+# q_table = QTable(action_class=Action, default_value=0)
+
 # Q学習の設定値
-# epsilon-greedy法のεの初期値・最小値・減衰率
-EPS_START = 1.0
-EPS_END = 0.01
-EPS_DECAY = 1000 # このステップ数で減衰させる
-EPS = EPS_START
-
-total_steps = 0
-LEARNING_RATE = 0.0001 # 学習率
-DISCOUNT_FACTOR = 0.99 # 割引率
-
-# ターゲットネットワークの更新頻度
-UPDATE_FREQ = 100  # 100ステップごとに同期（推奨）
-total_steps = 0
+EPS = 0.2 # ε-greedyにおけるε
+LEARNING_RATE = 0.01 # 学習率
+DISCOUNT_FACTOR = 0.5 # 割引率
 
 
 # ActionとNNの出力インデックスの対応表
@@ -286,12 +279,12 @@ def act(action: Action):
 # 現在の状態の取得
 def get_state():
 
+    # ??????????
+    #   - p_hand: ???????
+    #   - d_hand: ??????????????????
     p_hand, d_hand = get_current_hands()
 
     player_score = p_hand.get_score()
-    score_diff_from_21 = 21 - player_score
-    dealer_score = d_hand.get_score()
-    score_diff_from_21_dealer = 21 - dealer_score
     dealer_upcard = card_value_from_id(d_hand.cards[0]) if d_hand.length() > 0 else 0
     usable_ace = int(p_hand.has_usable_ace())
     player_card_count = p_hand.length()
@@ -306,9 +299,6 @@ def get_state():
 
     state = (
         player_score,
-        dealer_score,
-        score_diff_from_21,
-        score_diff_from_21_dealer,
         dealer_upcard,
         usable_ace,
         can_split,
@@ -383,7 +373,7 @@ def select_action_dqn(state, strategy: Strategy):
 
 
 # DQNの1ステップ学習
-def train_step(q_net, q_net_target, optimizer, batch, gamma=0.99):
+def train_step(q_net, optimizer, batch, gamma=0.99):
     states, actions, rewards, next_states, dones = batch
 
     # Q(s, a) の予測値（batch_size × action_dim）
@@ -392,7 +382,7 @@ def train_step(q_net, q_net_target, optimizer, batch, gamma=0.99):
 
     # Q_target = r + γ max_a' Q(s', a')
     with torch.no_grad():
-        next_q_values = q_net_target(next_states).max(1)[0]
+        next_q_values = q_net(next_states).max(1)[0]
         target = rewards + gamma * next_q_values * (1 - dones)
 
     loss = ((target - q_values)**2).mean()
@@ -433,26 +423,12 @@ class ReplayBuffer:
 ### ここから処理開始 ###
 
 def main():
-    global g_retry_counter, player, soc, q_net, optimizer, total_steps, EPS, EPS_START, EPS_END, EPS_DECAY, UPDATE_FREQ
+    global g_retry_counter, player, soc, q_net, optimizer
 
     losses = []
     buffer = ReplayBuffer(capacity=20000)
     batch_size = 32
-    recent_results = deque(maxlen=100)
-    win_rate_history = []
-    games_for_win_rate = []
 
-    # loss / 勝率監視用のグラフ表示設定
-    fig, (ax_loss, ax_win) = plt.subplots(2, 1, figsize=(8, 8))
-    line_loss, = ax_loss.plot([], [], label='Loss')
-    line_win, = ax_win.plot([], [], label='Win Rate (last 100 games)')
-    ax_loss.set_title('Training Loss')
-    ax_loss.set_xlabel('Updates')
-    ax_loss.set_ylabel('Loss')
-    ax_win.set_title('Win Rate (Last 100 Games)')
-    ax_win.set_xlabel('Games')
-    ax_win.set_ylabel('Win Rate')
-    ax_win.set_ylim(0, 1)
 
     parser = argparse.ArgumentParser(description='AI Black Jack Player (Q-learning)')
     parser.add_argument('--games', type=int, default=1, help='num. of games to play')
@@ -474,8 +450,6 @@ def main():
     print('score,hand_length,action,result,reward', file=logfile) # ログファイルにヘッダ行（項目名の行）を出力
 
     q_net = QNetwork()
-    q_net_target = QNetwork()
-    q_net_target.load_state_dict(q_net.state_dict())
     optimizer = torch.optim.Adam(q_net.parameters(), lr=1e-3)
 
     # DQNのNNパラメータをロード
@@ -491,7 +465,6 @@ def main():
 
         # 「現在の状態」を取得
         state = get_state()
-        final_status = None
 
         while True:
 
@@ -524,57 +497,23 @@ def main():
             state = get_state()
             score = state[0] # 行動後のプレイヤー手札のスコア（state の一つ目の要素）
 
-            # rewardはBET単位で大きいため，スケーリングしてから保存
-            buffer.push(prev_state, action_to_index(action), reward/20, state, done)
+            buffer.push(prev_state, action_to_index(action), reward, state, done)
 
             # DQNで学習
             if not args.testmode:
                 if len(buffer) > batch_size:
                     batch = buffer.sample(batch_size)
-                    loss = train_step(q_net, q_net_target, optimizer, batch)
+                    loss = train_step(q_net, optimizer, batch)
                     losses.append(loss)
-
-                # ターゲットネットワークの更新
-                total_steps += 1
-                if total_steps % UPDATE_FREQ == 0:
-                    q_net_target.load_state_dict(q_net.state_dict())
-                # εの減衰
-                if total_steps % EPS_DECAY == 0:
-                    EPS = max(EPS_END, EPS * 0.9)
-
-            # lossを200ステップごとにバックグラウンドで図で示す
-            if not args.testmode and len(losses) % 200 == 0 and len(losses) > 0:
-                line_loss.set_data(range(len(losses)), losses)
-                ax_loss.set_xlim(0, len(losses))
-                ax_loss.set_ylim(min(losses), max(losses) + 0.1)
-                ax_loss.figure.canvas.draw_idle()
-                plt.pause(0.01)
-
 
             # ログファイルに「行動前の状態」「行動の種類」「行動結果」「獲得金額」などの情報を記録
             print('{},{},{},{},{}'.format(prev_state[0], prev_state[1], action_name, status, reward), file=logfile)
 
             # 終了フラグが立った場合はnゲーム目を終了
             if done == True:
-                final_status = status
                 break
 
         print('')
-
-        # 勝率を200ゲームごとにバックグラウンドで図で示す
-        if not args.testmode and final_status is not None:
-            win_flag = 1 if final_status == 'win' else 0
-            recent_results.append(win_flag)
-            win_rate = sum(recent_results) / len(recent_results)
-            win_rate_history.append(win_rate)
-            games_for_win_rate.append(n)
-            line_win.set_data(games_for_win_rate, win_rate_history)
-            if games_for_win_rate:
-                ax_win.set_xlim(0, max(100, games_for_win_rate[-1]))
-            ax_win.set_ylim(0, 1)
-            ax_win.figure.canvas.draw_idle()
-            if len(win_rate_history) % 200 == 0:
-                plt.pause(0.01)
 
     # ログファイルを閉じる
     logfile.close()
@@ -584,15 +523,12 @@ def main():
         # DQNのNNパラメータをセーブ
         torch.save(q_net.state_dict(), args.save)
 
-    #  グラフの最終表示
+    # 損失のグラフを表示
     if not args.testmode:
-        if losses:
-            line_loss.set_data(range(len(losses)), losses)
-            ax_loss.set_xlim(0, len(losses))
-            ax_loss.set_ylim(min(losses), max(losses) + 0.1)
-        if games_for_win_rate:
-            ax_win.set_xlim(0, max(100, games_for_win_rate[-1]))
-        plt.tight_layout()
+        plt.plot(losses)
+        plt.xlabel('Iteration')
+        plt.ylabel('Loss')
+        plt.title('Training Loss over Time')
         plt.show()
 
 if __name__ == '__main__':
