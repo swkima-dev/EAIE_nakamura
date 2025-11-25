@@ -1,4 +1,4 @@
-import copy
+﻿import copy
 import socket
 import argparse
 import numpy as np
@@ -38,7 +38,15 @@ EPS_DECAY = 1000 # このステップ数で減衰させる
 EPS = EPS_START
 
 total_steps = 0
-LEARNING_RATE = 0.0001 # 学習率
+
+# 学習率
+LEARNING_RATE = 0.001 
+LEARNING_RATE_DECAY = 0.8 # 学習率の減衰率
+LEARNING_RATE_MIN = 0.00001 # 学習率の最小値
+LEARNING_RATE_DECAY_STEPS = 1000 # このステップ数で減衰させる
+LEARNING_RATE_DECAY_START = 10000 # このステップ数以降で減衰を開始
+
+
 DISCOUNT_FACTOR = 0.99 # 割引率
 
 # ターゲットネットワークの更新頻度
@@ -476,11 +484,15 @@ def main():
     q_net = QNetwork()
     q_net_target = QNetwork()
     q_net_target.load_state_dict(q_net.state_dict())
-    optimizer = torch.optim.Adam(q_net.parameters(), lr=1e-3)
+    optimizer = torch.optim.Adam(q_net.parameters(), lr=LEARNING_RATE)
 
     # DQNのNNパラメータをロード
     if args.load != '':
         q_net.load_state_dict(torch.load(args.load))
+
+    # testmodeの場合はランダム性を排除
+    if args.testmode:
+        EPS = 0.0
 
 
     # n_games回ゲームを実行
@@ -539,8 +551,13 @@ def main():
                 if total_steps % UPDATE_FREQ == 0:
                     q_net_target.load_state_dict(q_net.state_dict())
                 # εの減衰
-                if total_steps % EPS_DECAY == 0:
+                if args.testmode == False and total_steps % EPS_DECAY == 0:
                     EPS = max(EPS_END, EPS * 0.9)
+                # 学習率の減衰
+                if args.testmode == False and total_steps % LEARNING_RATE_DECAY_STEPS == 0 and total_steps > LEARNING_RATE_DECAY_START:
+                    for param_group in optimizer.param_groups:
+                        new_lr = max(LEARNING_RATE_MIN, param_group['lr'] * LEARNING_RATE_DECAY)
+                        param_group['lr'] = new_lr
 
             # lossを200ステップごとにバックグラウンドで図で示す
             if not args.testmode and len(losses) % 200 == 0 and len(losses) > 0:
@@ -562,7 +579,7 @@ def main():
         print('')
 
         # 勝率を200ゲームごとにバックグラウンドで図で示す
-        if not args.testmode and final_status is not None:
+        if final_status is not None:
             win_flag = 1 if final_status == 'win' else 0
             recent_results.append(win_flag)
             win_rate = sum(recent_results) / len(recent_results)
